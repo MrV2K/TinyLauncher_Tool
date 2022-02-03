@@ -1,8 +1,10 @@
-﻿;- TinyLauncher Tool
+﻿;- ### Program Info ###
 ;
-; Version 0.2 Alpha
+; Tinylauncher Tool
 ;
-; © 2021 Paul Vince (MrV2k)
+; Version 0.2a
+;
+; © 2022 Paul Vince (MrV2k)
 ;
 ; https://easymame.mameworld.info
 ;
@@ -10,13 +12,17 @@
 ;
 ; A converter for TinyLauncher DB files.
 ;
+;- ### Version Info ###
+;
 ; ====================================================================
+;
+; Version 0.1a
 ;
 ; Initial Release
 ;
 ; ====================================================================
 ;
-; Version 0.2
+; Version 0.2a
 ;
 ; Fixed bug if game folders are in the root of the drive path
 ; Added ability to save in different cases
@@ -209,7 +215,7 @@ Procedure.l FTPClose(hInternet.l)
 EndProcedure 
 
 Procedure Save_CSV()
-      
+  
   Protected igfile, output$, path.s, response
   Protected path$, slave$, title$
   path=""
@@ -245,8 +251,8 @@ Procedure Save_CSV()
 EndProcedure
 
 Procedure Load_CSV()
-
-  Protected CSV_File.i, Text_Data.s, Text_String.s
+  
+  Protected CSV_File.i, DB_List.s, Text_String.s
   Protected Count.i, I.i, Backslashes.i, Text_Line.s, Full_String.s, Game_Name.s, Slave_Name.s, Path_Name.s
   
   Protected NewList CSV_Data.s()
@@ -273,10 +279,10 @@ Procedure Load_CSV()
       ClearList(UM_Database())
       
       ForEach CSV_Data()
-        Text_Data=CSV_Data()
-        Path_Name=Mid(Text_Data,1,128)
-        Slave_Name=Mid(Text_Data,129,42)
-        Game_Name=Mid(Text_Data,171,48)
+        DB_List=CSV_Data()
+        Path_Name=Mid(DB_List,1,128)
+        Slave_Name=Mid(DB_List,129,42)
+        Game_Name=Mid(DB_List,171,48)
         Path_Name=Trim(RemoveString(Path_Name,Chr(1)))
         Slave_Name=Trim(RemoveString(Slave_Name,Chr(1)))
         Game_Name=Trim(RemoveString(Game_Name,Chr(1)))
@@ -313,10 +319,12 @@ Procedure Load_CSV()
   
   Proc_Exit:
   
+  FreeList(CSV_Data())
+  
 EndProcedure
 
 Procedure Filter_List()
-   
+  
   Protected Previous.s
   
   ClearList(Filtered_List())
@@ -345,7 +353,7 @@ Procedure Filter_List()
       Filtered_List()=ListIndex(UM_Database())
     EndIf
   Next
-    
+  
 EndProcedure
 
 Procedure Get_Database()
@@ -436,28 +444,28 @@ EndProcedure
 
 Procedure Load_DB()
   
-  Protected CSV_File.i, Path.s, Text_Data.s, Text_String.s
+  Protected CSV_File.i, Path.s
   Protected Count.i, I.i, Backslashes.i, Text_Line.s
   
-  Protected NewList Text_Data.s()  
+  Protected NewList DB_List.s()  
   
   path=Home_Path+UM_Data_File
   
   If path<>""
-        
+    
     ClearList(Comp_Database())
     ClearMap(Comp_Map())
     
     If ReadFile(CSV_File,Path,#PB_Ascii)
       Repeat
-        AddElement(Text_Data())
-        Text_Data()=ReadString(CSV_File)
+        AddElement(DB_List())
+        DB_List()=ReadString(CSV_File)
       Until Eof(CSV_File)
       CloseFile(CSV_File) 
       
-      ForEach Text_Data()
+      ForEach DB_List()
         AddElement(Comp_Database())
-        Text_Line=Text_Data()
+        Text_Line=DB_List()
         Comp_Database()\C_Slave=LCase(StringField(Text_Line,1,Chr(59)))
         Comp_Database()\C_Folder=StringField(Text_Line,2,Chr(59))
         Comp_Database()\C_Genre=StringField(Text_Line,3,Chr(59))
@@ -475,7 +483,7 @@ Procedure Load_DB()
   
   SortStructuredList(UM_Database(),#PB_Sort_Ascending|#PB_Sort_NoCase,OffsetOf(UM_Data\UM_Name),TypeOf(UM_Data\UM_Name))
   
-  FreeList(Text_Data())
+  FreeList(DB_List())
   
 EndProcedure
 
@@ -499,7 +507,7 @@ Procedure Draw_List()
       Filtered_List()=ListIndex(UM_Database())
     Next
   EndIf
-
+  
   ForEach Filtered_List()
     SelectElement(UM_Database(),Filtered_List())
     If UM_Database()\UM_Slave<>"" : File=UM_Database()\UM_Slave : EndIf
@@ -533,7 +541,7 @@ Procedure Draw_List()
   Else
     DisableGadget(#TAG_BUTTON,#True)
   EndIf
-    
+  
   Resume_Window(#MAIN_WINDOW)
   
 EndProcedure
@@ -551,6 +559,8 @@ Procedure Fix_List()
   EndIf
   
   If ListSize(Comp_Database())>0
+    
+    SetGadgetText(#LOADING_TEXT,"Fixing game list...")
     
     ForEach UM_Database() 
       If FindMapElement(Comp_Map(),LCase(UM_Database()\UM_Folder+"_"+UM_Database()\UM_Slave))
@@ -570,9 +580,9 @@ Procedure Fix_List()
     DisableGadget(#UNKNOWN_CHECK,#False)
     DisableGadget(#SHORT_NAME_CHECK,#False)
     DisableGadget(#SAVE_BUTTON,#False)
+    DisableGadget(#CASE_COMBO,#False)
     Short_Names=#True
     SetGadgetState(#SHORT_NAME_CHECK,Short_Names)
-    
     
   Else
     
@@ -613,12 +623,11 @@ Procedure Tag_List()
       SelectElement(Lines(),ListIndex(Tags()))
       SetGadgetItemText(#MAIN_LIST,Lines(),UM_Database()\UM_Name,0)
     Next
-    ;Draw_List()
   EndIf
   
   FreeList(Tags())
   FreeList(Lines())
-    
+  
 EndProcedure
 
 Procedure Help_Window()
@@ -665,6 +674,8 @@ Procedure Help_Window()
   output$+"'Show Duplicates' filters the list and shows duplicate entries."+Chr(10)
   output$+""+Chr(10)
   output$+"'Show Unknown' filters the list and shows unknown entries. If an entry is marked as unknown, it may be worth checking to see it the slave has been updated."+Chr(10)
+  output$+""+Chr(10)
+  output$+"The case dropdown lets you set how the titles are generated for the new DB file. The available options are 'Camel Case', 'lower case' and 'UPPER CASE'."+Chr(10)
   
   If OpenWindow(#HELP_WINDOW,0,0,400,450,"Help",#PB_Window_SystemMenu|#PB_Window_WindowCentered,WindowID(#MAIN_WINDOW))
     EditorGadget(#HELP_EDITOR,0,0,400,450,#PB_Editor_ReadOnly|#PB_Editor_WordWrap)
@@ -700,7 +711,7 @@ Procedure Edit_Window()
 EndProcedure
 
 Procedure Main_Window()
-
+  
   If OpenWindow(#MAIN_WINDOW,0,0,900,600,Prog_Title+" "+Version,#PB_Window_SystemMenu|#PB_Window_ScreenCentered)
     
     Pause_Window(#MAIN_WINDOW)
@@ -709,7 +720,7 @@ Procedure Main_Window()
     SetGadgetColor(#MAIN_LIST,#PB_Gadget_BackColor,#White)
     AddGadgetColumn(#MAIN_LIST,1,"Slave",200)
     AddGadgetColumn(#MAIN_LIST,2,"Path",340)
-
+    
     ButtonGadget(#LOAD_BUTTON,5,555,80,40,"Load DB")
     ButtonGadget(#FIX_BUTTON,90,555,80,40,"Fix List")
     ButtonGadget(#SAVE_BUTTON,175,555,80,40,"Save DB")
@@ -726,20 +737,21 @@ Procedure Main_Window()
     AddGadgetItem(#CASE_COMBO,-1,"Camel Case")
     AddGadgetItem(#CASE_COMBO,-1,"lower case")
     AddGadgetItem(#CASE_COMBO,-1,"UPPER CASE")
-
+    
     SetGadgetState(#CASE_COMBO,Output_Case)
     SetGadgetState(#SHORT_NAME_CHECK,Short_Names)
     SetGadgetState(#DUPE_CHECK,Filter)
     
     DisableGadget(#FIX_BUTTON,#True)
     DisableGadget(#SAVE_BUTTON,#True)
-
+    
     DisableGadget(#SHORT_NAME_CHECK,#True)
     DisableGadget(#CLEAR_BUTTON,#True)
     DisableGadget(#UNKNOWN_CHECK,#True)
     DisableGadget(#DUPE_CHECK,#True)
     DisableGadget(#TAG_BUTTON,#True)
     DisableGadget(#UNDO_BUTTON,#True)
+    DisableGadget(#CASE_COMBO,#True)
     
     Resume_Window(#MAIN_WINDOW)
     
@@ -747,7 +759,11 @@ Procedure Main_Window()
   
 EndProcedure
 
+;- ### Init Program ###
+
 Main_Window()
+
+;- ### Main Loop ###
 
 Repeat
   
@@ -775,8 +791,8 @@ Repeat
           close=#True
         EndIf  
       EndIf
-            
-      Case #PB_Event_Gadget
+      
+    Case #PB_Event_Gadget
       
       Select gadget
           
@@ -808,33 +824,31 @@ Repeat
           
         Case #TAG_BUTTON
           Tag_List()
-                    
+          
         Case #CLEAR_BUTTON
           If MessageRequester("Warning","Clear All Data?",#PB_MessageRequester_YesNo|#PB_MessageRequester_Warning)=#PB_MessageRequester_Yes
-          FreeList(Undo_Database())
-          FreeList(UM_Database())
-          FreeList(Filtered_List())
-          Pause_Window(#MAIN_WINDOW)
-          ClearGadgetItems(#MAIN_LIST)
-          DisableGadget(#FIX_BUTTON,#True)
-          DisableGadget(#SAVE_BUTTON,#True)
-          DisableGadget(#DUPE_CHECK,#True)
-          DisableGadget(#SHORT_NAME_CHECK,#True)
-          DisableGadget(#CLEAR_BUTTON,#True)
-          DisableGadget(#TAG_BUTTON,#True)
-          DisableGadget(#UNKNOWN_CHECK,#True)
-          DisableGadget(#UNDO_BUTTON,#True)
-          Unknown=#False
-          Filter=#False
-          Short_Names=#False
-          SetGadgetState(#DUPE_CHECK,Filter)
-          SetGadgetState(#UNKNOWN_CHECK,Unknown)
-          SetGadgetState(#SHORT_NAME_CHECK,Short_Names)
-          SetWindowTitle(#MAIN_WINDOW,Prog_Title+" "+Version)
-          Global NewList UM_Database.UM_Data()
-          Global NewList Undo_Database.UM_Data()
-          Global NewList Filtered_List.i()
-          Resume_Window(#MAIN_WINDOW)
+            ClearList(Undo_Database())
+            ClearList(UM_Database())
+            ClearList(Filtered_List())
+            Pause_Window(#MAIN_WINDOW)
+            ClearGadgetItems(#MAIN_LIST)
+            DisableGadget(#FIX_BUTTON,#True)
+            DisableGadget(#SAVE_BUTTON,#True)
+            DisableGadget(#DUPE_CHECK,#True)
+            DisableGadget(#SHORT_NAME_CHECK,#True)
+            DisableGadget(#CLEAR_BUTTON,#True)
+            DisableGadget(#TAG_BUTTON,#True)
+            DisableGadget(#UNKNOWN_CHECK,#True)
+            DisableGadget(#UNDO_BUTTON,#True)
+            DisableGadget(#CASE_COMBO,#True)
+            Unknown=#False
+            Filter=#False
+            Short_Names=#False
+            SetGadgetState(#DUPE_CHECK,Filter)
+            SetGadgetState(#UNKNOWN_CHECK,Unknown)
+            SetGadgetState(#SHORT_NAME_CHECK,Short_Names)
+            SetWindowTitle(#MAIN_WINDOW,Prog_Title+" "+Version)
+            Resume_Window(#MAIN_WINDOW)
           EndIf
           
         Case #HELP_BUTTON
@@ -885,7 +899,7 @@ Repeat
           EndIf
           
       EndSelect
-             
+      
       
   EndSelect
   
@@ -893,9 +907,8 @@ Until close=#True
 
 End
 ; IDE Options = PureBasic 6.00 Beta 3 (Windows - x64)
-; CursorPosition = 725
-; FirstLine = 296
-; Folding = A+A3-
+; CursorPosition = 13
+; Folding = AAAA-
 ; Optimizer
 ; EnableThread
 ; EnableXP
