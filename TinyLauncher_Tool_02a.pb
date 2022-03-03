@@ -37,6 +37,8 @@
 ; Sped up edit window drawing
 ; Added basic data to unknown slaves
 ; Added database error check to fix list procedure;
+; Draw list, FTP download and filter code now in line with IGTool.
+; Main list columns now scale to scrollbar.
 
 ; ====================================================================
 ;
@@ -169,8 +171,9 @@ EndMacro
 
 Macro Resume_Gadget(gadget)
   
-  CopyList(UM_Database(),Undo_Database())
-  DisableGadget(#UNDO_BUTTON,state)
+  SendMessage_(GadgetID(gadget),#WM_SETREDRAW,#True,0)
+  InvalidateRect_(GadgetID(gadget), 0, 0)
+  UpdateWindow_(GadgetID(gadget))
   
 EndMacro
 
@@ -257,7 +260,7 @@ Procedure Load_CSV()
   
   Protected NewList CSV_Data.s()
   
-  CSV_Path=OpenFileRequester("Open TinyLauncher","Games.db","TinyLauncher File (*.db)|*.db",0)
+  CSV_Path=OpenFileRequester("Open TinyLauncher","","TinyLauncher File (*.db)|*.db",0)
   
   If CSV_Path<>""
     
@@ -347,12 +350,11 @@ Procedure Filter_List()
     EndIf
   Next
   
-  ForEach UM_Database()
-    If UM_Database()\UM_Filtered=#True
-      AddElement(Filtered_List())
-      Filtered_List()=ListIndex(UM_Database())
-    EndIf
-  Next
+  If filter Or Unknown
+    DB_Filter(#True)
+  Else
+    DB_Filter(#False)
+  EndIf
   
 EndProcedure
 
@@ -398,20 +400,15 @@ Procedure Get_Database()
       If Old_DB <> New_DB
         
         SetGadgetText(#LOADING_TEXT,"Downloading data file.")
-        
         DeleteFile(Old_DB)
-        
         FTPDownload(hConnect,New_DB,New_DB)
         FTPDownload(hConnect,"genres","genres")
-        
         UM_Data_File=New_DB
         
       Else
         
         SetGadgetText(#LOADING_TEXT,"Data file up to date.")
-        
         Delay(500)
-        
         UM_Data_File=Old_DB
         
       EndIf
@@ -421,7 +418,6 @@ Procedure Get_Database()
     Else
       
       MessageRequester("Error", "Cannot connect to FTP.",#PB_MessageRequester_Error|#PB_MessageRequester_Ok)
-      
       UM_Data_File=Old_DB
       
     EndIf
@@ -429,15 +425,12 @@ Procedure Get_Database()
   Else
     
     MessageRequester("Error", "Cannot connect to Network.",#PB_MessageRequester_Error|#PB_MessageRequester_Ok)
-    
     UM_Data_File=Old_DB
     
   EndIf
   
-  If Old_DB<>"" : UM_Data_File=Old_DB : EndIf
-  
+  If New_DB="" : UM_Data_File=Old_DB : EndIf
   If UM_Data_File="" : MessageRequester("Error","No database file found",#PB_MessageRequester_Error|#PB_MessageRequester_Ok) : EndIf
-  
   FreeList(FTP_List())
   
 EndProcedure
@@ -490,23 +483,15 @@ EndProcedure
 Procedure Draw_List()
   
   Protected Text.s, File.s
-  Protected Count
+  Protected Count, previous_entry.s
   
-  Pause_Window(#MAIN_WINDOW)
+  Pause_Gadget(#MAIN_LIST)
   
   ClearGadgetItems(#MAIN_LIST)
   
   ClearList(Filtered_List())
   
-  If filter Or unknown
-    Filter_List()
-  Else
-    ForEach UM_Database()
-      UM_Database()\UM_Filtered=#False
-      AddElement(Filtered_List())
-      Filtered_List()=ListIndex(UM_Database())
-    Next
-  EndIf
+  Filter_List()
   
   ForEach Filtered_List()
     SelectElement(UM_Database(),Filtered_List())
@@ -519,12 +504,13 @@ Procedure Draw_List()
     EndIf
     AddGadgetItem(#MAIN_LIST,-1,text)
     If ListIndex(UM_Database())>1
-      If GetGadgetItemText(#MAIN_LIST, ListIndex(Filtered_List())-1,0)=UM_Database()\UM_Name
+      If previous_entry=UM_Database()\UM_Name
         SetGadgetItemColor(#MAIN_LIST, ListIndex(Filtered_List()), #PB_Gadget_FrontColor,#Red)
         SetGadgetItemColor(#MAIN_LIST, ListIndex(Filtered_List())-1, #PB_Gadget_FrontColor,#Red)
       EndIf
     EndIf 
     If UM_Database()\UM_Unknown=#True : SetGadgetItemColor(#MAIN_LIST, ListIndex(Filtered_List()), #PB_Gadget_FrontColor,#Blue) : EndIf
+    previous_entry=UM_Database()\UM_Name
   Next
   
   For Count=0 To CountGadgetItems(#MAIN_LIST) Step 2
@@ -542,7 +528,13 @@ Procedure Draw_List()
     DisableGadget(#TAG_BUTTON,#True)
   EndIf
   
-  Resume_Window(#MAIN_WINDOW)
+  Resume_Gadget(#MAIN_LIST)
+  
+  If GetWindowLongPtr_(GadgetID(#MAIN_LIST), #GWL_STYLE) & #WS_VSCROLL
+    SetGadgetItemAttribute(#MAIN_LIST,3,#PB_ListIcon_ColumnWidth,340)
+  Else
+    SetGadgetItemAttribute(#MAIN_LIST,3,#PB_ListIcon_ColumnWidth,355)
+  EndIf
   
 EndProcedure
 
@@ -755,6 +747,12 @@ Procedure Main_Window()
     
     Resume_Window(#MAIN_WINDOW)
     
+    If GetWindowLongPtr_(GadgetID(#MAIN_LIST), #GWL_STYLE) & #WS_VSCROLL
+      SetGadgetItemAttribute(#MAIN_LIST,3,#PB_ListIcon_ColumnWidth,340)
+    Else
+      SetGadgetItemAttribute(#MAIN_LIST,3,#PB_ListIcon_ColumnWidth,355)
+    EndIf
+    
   EndIf
   
 EndProcedure
@@ -906,8 +904,7 @@ Repeat
 Until close=#True
 
 End
-; IDE Options = PureBasic 6.00 Beta 3 (Windows - x64)
-; CursorPosition = 13
+; IDE Options = PureBasic 6.00 Beta 4 (Windows - x64)
 ; Folding = AAAA-
 ; Optimizer
 ; EnableThread
@@ -915,7 +912,7 @@ End
 ; DPIAware
 ; UseIcon = boing.ico
 ; Executable = TinyLauncher_Tool_64.exe
-; Compiler = PureBasic 6.00 Alpha 3 (Windows - x64)
+; Compiler = PureBasic 6.00 Beta 4 (Windows - x64)
 ; Debugger = Standalone
 ; IncludeVersionInfo
 ; VersionField0 = 0,0,0,2
@@ -928,6 +925,11 @@ End
 ; VersionField7 = IG_Tool
 ; VersionField8 = IGame_Tool.exe
 ; VersionField9 = 2021 Paul Vince
+; VersionField10 = -
+; VersionField11 = -
+; VersionField12 = -
+; VersionField13 = -
+; VersionField14 = -
 ; VersionField15 = VOS_NT
 ; VersionField16 = VFT_APP
 ; VersionField17 = 0809 English (United Kingdom)
